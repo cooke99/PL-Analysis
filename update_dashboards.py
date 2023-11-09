@@ -1,15 +1,17 @@
 import os
 import numpy as np
 import pandas as pd
+import seaborn as sns
 from scipy.stats import *
 from statsmodels.stats.multitest import multipletests
 from convert_points import convert_points
 
-def update_dashboards(position: str = 'DEF', top_n: int = 20) -> None:
+def update_dashboards(position: str = 'DEF', top_n: int = 20, 
+                      save_csv: bool = True) -> None:
     """
-    Update the data CSVs that are used by Tableau to generate
-    the dashboards. We are now using only 2021 - 2023 data
-    to compare with this season (2023/24).
+    Update the player analysis dashboards. 
+    We are now using only 2021 - 2023 data to compare with this 
+    season (2023/24).
 
     Parameters
     ----------
@@ -21,11 +23,15 @@ def update_dashboards(position: str = 'DEF', top_n: int = 20) -> None:
         How many players to include in the results table. Usually
         pick 10 for GK, 15 for FWD and 20 for DEF/MID. The default 
         is 20.
+    save_csv : bool, optional
+        Whether to save the updated 2023-24 dashboard data for this position
+        as a csv file.
 
     Returns
     -------
-    None
-        DESCRIPTION.
+    top_n_mean : pd.DataFrame
+        Dataframe containing the updated 2023-24 dashboard data for 
+        this position.
         
     """
     
@@ -82,6 +88,7 @@ def update_dashboards(position: str = 'DEF', top_n: int = 20) -> None:
         
     else:
         top_n_mean = pd.read_csv(f'./results/{position}_data_2021_2023.csv', index_col = 'name')
+        top_n_names = list(top_n_mean.index)
         
     # Update file with latest 2023/24 season data:
     mean_pts_2023_24 = data_2023_24.loc[data_2023_24.name.isin(top_n_names),['name',\
@@ -151,14 +158,78 @@ def update_dashboards(position: str = 'DEF', top_n: int = 20) -> None:
                              'Appearances 2023-24', 'mean total - bonus 2023-24',
                              'Effect size', 'SE','t','p-value','BH Stat Signf',
                              'Effect size label','Current Price (M)','Average opposition strength 2023-24']]
-    
+
     print(top_n_mean)
-    top_n_mean.to_csv(f'./results/{position}_data_2023_24.csv')
-    return None
+    
+    if save_csv:
+        top_n_mean.to_csv(f'./results/{position}_data_2023_24.csv')
+        
+    return top_n_mean
+
+def __formatter_points_change(x):
+    c1 = '''color:white;background-color: forestgreen '''
+    c2 = '''color:white;background-color: crimson '''
+    #compare columns
+    mask = x['Effect size'] > 0
+    mask2 = x['Effect size'] < 0
+    #DataFrame with same index and columns names as original filled empty strings
+    df1 =  pd.DataFrame('', index=x.index, columns=x.columns)
+    #modify values of df1 column by boolean mask
+    df1.loc[mask, 'mean total - bonus 2023-24'] = c1
+    df1.loc[mask2, 'mean total - bonus 2023-24'] = c2
+    
+    return df1
+
+def __formatter_effect_size_colour(x):
+    a = sns.color_palette('BuGn',7).as_hex()
+    
+    none = f'''color:black;background-color: {a[0]} '''
+    vsmall = f'''color:white;background-color: {a[1]} '''
+    small = f'''color:white;background-color: {a[2]} '''
+    med = f'''color:white;background-color: {a[3]} '''
+    large = f'''color:white;background-color: {a[4]} '''
+    vlarge = f'''color:white;background-color: {a[5]} '''
+    huge = f'''color:white;background-color: {a[6]} '''
+    #compare columns
+    mask = x['Effect size label'] == 'None'
+    mask2= x['Effect size label'] == 'Very small'
+    mask3= x['Effect size label'] == 'Small'
+    mask4= x['Effect size label'] == 'Medium'
+    mask5= x['Effect size label'] == 'Large'
+    mask6= x['Effect size label'] == 'Very large'
+    mask7= x['Effect size label'] == 'Huge'
+    #DataFrame with same index and columns names as original filled empty strings
+    df1 =  pd.DataFrame('', index=x.index, columns=x.columns)
+    #modify values of df1 column by boolean mask
+    df1.loc[mask, 'Effect size label'] = none
+    df1.loc[mask2, 'Effect size label'] = vsmall
+    df1.loc[mask3, 'Effect size label'] = small
+    df1.loc[mask4, 'Effect size label'] = med
+    df1.loc[mask5, 'Effect size label'] = large
+    df1.loc[mask6, 'Effect size label'] = vlarge
+    df1.loc[mask7, 'Effect size label'] = huge
+    
+    return df1
 
 if __name__ == '__main__':
-    update_dashboards('GK',15)
-    update_dashboards('DEF',30)
-    update_dashboards('MID',30)
-    update_dashboards('FWD',30)
     
+    GK_df = update_dashboards('GK', 15, False)
+    DEF_df = update_dashboards('DEF',30, False)
+    MID_df = update_dashboards('MID',30, False)
+    FWD_df = update_dashboards('FWD',30, False)
+    positions = ['GK','DEF','MID','FWD']
+    highlight_slice = ['mean total - bonus 2021 - 2023','Current Price (M)']
+    
+    # create a excel writer object
+    with pd.ExcelWriter('./results/Player_Analysis_Dashboard_2023_24.xlsx') as writer:   
+        for idx,df in enumerate([GK_df, DEF_df, MID_df, FWD_df]):
+            # use to_excel function and specify the sheet_name and index 
+            # to store the dataframe in specified sheet
+            df = df.round(2)
+            df.loc[:,'Appearances 2021-2023'] = df.loc[:,'Appearances 2021-2023'].astype(int)
+            df.loc[:,'Appearances 2023-24'] = df.loc[:,'Appearances 2023-24'].astype(int)
+            df.style.set_properties(**{'color':'black','background-color': '#ffffb3'}, subset=highlight_slice)\
+            .background_gradient(cmap=sns.diverging_palette(145, 10, as_cmap=True), subset=['Average opposition strength 2023-24'])\
+            .map(lambda x: f'''color:white;background-color: {'forestgreen' if x else 'crimson'}''',subset=['BH Stat Signf'])\
+            .apply(__formatter_points_change, axis=None)\
+            .apply(__formatter_effect_size_colour, axis=None).to_excel(writer, sheet_name=positions[idx], index=True)
