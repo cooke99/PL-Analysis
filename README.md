@@ -6,8 +6,6 @@ Data is sourced from https://github.com/vaastav/Fantasy-Premier-League, which I 
 
 Tableau dashboard for 2023/24 season data produced by me is available here: https://public.tableau.com/app/profile/andrew.cooke/viz/FPLDashboard20232024/Dashboard202324Season
 
-As of GW10, I am currently second in the leaderboard, trailing first place by 24 points, having overcome a 70 point deficit from GW1 (I joined FPL in GW2).
-
 This repository contains the following folders:
 
 * data fixes : Contains SQL scripts and data files that were fixed from the original data source.
